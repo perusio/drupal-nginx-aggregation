@@ -1,0 +1,4 @@
+name = Nginx Aggregation
+description = Agrgregates all CSS files using Nginx HTTP concat module
+package = Nginx
+core = 6.x
