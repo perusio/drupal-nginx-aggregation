@@ -168,10 +168,8 @@ function nginx_aggregation_concat_css_files($css_files) {
       // Loop over all CSS files.
       for($i = 0; $i < $n; $i++) {
         $file = $css_files[$i];
-        $css_replace = 0;
       file_processing: // Label this for the goto.
-        // Grab the content.
-        $buffer = file_get_contents("$file");
+        $css_replace = 0;
         // If there's a url() replace the argument to an absolute path and
         // add it to the array of stylesheets to be internal.
         if (strpos($buffer, 'url(') !== FALSE) {
