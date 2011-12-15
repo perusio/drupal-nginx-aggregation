@@ -176,14 +176,19 @@ function nginx_aggregation_concat_css_files($css_files) {
       // Loop over all CSS files.
       for($i = 0; $i < $n; $i++) {
         $file = $css_files[$i];
+        // Check to see if a file really exists. If not all hell breaks
+        // loose. We skip it.
+        if (!file_exists($file)) {
+          continue;
+        }
         $buffer = file_get_contents("$file");
       recurse_files:
         // If there's a url() replace the argument to an absolute path and
         // add it to the array of stylesheets to be internal.
         if (strpos($buffer, 'url(') !== FALSE) {
-          preg_replace_callback(NGINX_AGGREGATION_REGEX_CSS_URI, $buffer,
-                                '_nginx_aggregation_css_inline_url');
-          $internal_types_styles[] = $buffer;
+          $internal_types_styles[] =
+            preg_replace_callback(NGINX_AGGREGATION_REGEX_CSS_URL,
+                                  '_nginx_aggregation_css_inline_url', $buffer);
           continue;
         }
         $orig_buffer = '';
@@ -303,6 +308,11 @@ function nginx_aggregation_concat_js_files($javascript) {
         break;
       default:
         foreach ($data as $path => $info) {
+          // Check to see if a file really exists. If not all hell breaks
+          // loose. We skip it.
+          if (!file_exists($path)) {
+            continue;
+          }
           if ($info['cache']) { // Deal with files that can be cached.
             if ($info['defer']) {
               $nginx_aggregation_scripts_cache_defer[] = $path;
@@ -396,7 +406,7 @@ function nginx_aggregation_concat_js_files($javascript) {
  * @return
  *   The new filename: an absolute URI.
  */
-function _nginx_aggregation_css_inline_uri($regex_matches) {
+function _nginx_aggregation_css_inline_url($regex_matches) {
   return variable_get('nginx_aggregation_host', NGINX_AGGREGATION_DEFAULT_HOST) . base_path() .
     trim(str_replace($_SERVER['DOCUMENT_ROOT'], '', realpath($regex_matches[1])), '/');
-} // _nginx_aggregation_css_inline_uri
+} // _nginx_aggregation_css_inline_url
