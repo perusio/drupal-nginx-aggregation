@@ -28,6 +28,14 @@ define('NGINX_AGGREGATION_VERSION_PREFIX', 'v=');
 define('NGINX_AGGREGATION_CSS_URL_REPLACE', 1);
 define('NGINX_AGGREGATION_CSS_IMPORT_REPLACE', 2);
 
+// Regex for capturing the URI of a given asset in a stylesheet that is
+// included using a url(). Stolen from: https://code.google.com/p/minify.
+define('NGINX_AGGREGATION_REGEX_CSS_URL', '/url\\(\\s*([^\\)\\s]+)\\s*\\)/');
+
+// Regex for capturing the URI of an imported stylesheet. Stolen from:
+// https://code.google.com/p/minify.
+define('NGINX_AGGREGATION_REGEX_CSS_IMPORT', '/@import\\s+([\'"])(.*?)[\'"]/');
+
 /**
  * Implements hook_help().
  */
@@ -168,33 +176,40 @@ function nginx_aggregation_concat_css_files($css_files) {
       // Loop over all CSS files.
       for($i = 0; $i < $n; $i++) {
         $file = $css_files[$i];
-      file_processing: // Label this for the goto.
-        $css_replace = 0;
+        $buffer = file_get_contents("$file");
+      recurse_files:
         // If there's a url() replace the argument to an absolute path and
         // add it to the array of stylesheets to be internal.
         if (strpos($buffer, 'url(') !== FALSE) {
-          $css_replace = NGINX_AGGREGATION_CSS_URL_REPLACE;
+          preg_replace_callback(NGINX_AGGREGATION_REGEX_CSS_URI, $buffer,
+                                '_nginx_aggregation_css_inline_url');
+          $internal_types_styles[] = $buffer;
+          continue;
         }
+        $orig_buffer = '';
         // Replace all @import declarations with an inclusion.
         if (strpos($buffer, '@import') !== FALSE) {
-          $css_replace |= NGINX_AGGREGATION_CSS_IMPORT_REPLACE;
-        }
-        switch ($css_replace) {
-          case NGINX_AGGREGATION_CSS_URL_REPLACE:
-            // TODO regex replace or data URIs.
-            $internal_types_styles[] = $buffer;
-            break;
-          case NGINX_AGGREGATION_CSS_IMPORT_REPLACE:
-            // TODO regex replace.
-            // $file = grab file from regex
-            // goto file_processing;
-            $internal_types_styles[] = $buffer;
-            break;
-          default:
-            // Otherwise add to the external.
-            $external_types_styles[] = $file;
-            $nbr_concatenated_css++;
-        } // switch
+          $orig_buffer = $buffer;
+          // Grab all @import rules from the file.
+          $matches = array();
+          $nbr_matches = preg_match_all(NGINX_AGGREGATION_REGEX_CSS_IMPORT, $buffer, $matches);
+          // Loop on all the matches.
+          for ($j = 0; $j < $nbr_matches; $j++) {
+            // Get the file realpath.
+            $file = realpath($matches[1][$j]);
+            // Get the file content.
+            $buffer = file_get_contents("$file");
+            // Jump above for reprocessing each file.
+            goto recurse_files;
+          }
+          // Fill the table with inlined stylesheets. Now everything is clear,
+          // i.e., no more @imports to be processed.
+          $internal_types_styles[] = $buffer . $orig_buffer;
+          continue;
+        } // if @import
+        // Everything else is external.
+        $external_types_styles[] = $file;
+        $nbr_concatenated_css++;
       } // for
     } // inner foreach
     // Implode the array so that we get a proper comma separated string of
@@ -220,7 +235,7 @@ function nginx_aggregation_concat_css_files($css_files) {
           sprintf("<link type=\"text/css\" media=\"%s\" rel=\"stylesheet\" href=\"%s\" />\n",
                   $media_type, $external_styles[$media_type]);
       } // else
-      // Get the internal CSS to be present on the page.
+        // Get the internal CSS to be present on the page.
       if (!empty($internal_styles[$media_type])) {
         $internal_css .= sprintf("<style type=\"text/css\" media=%s>\n%s</style>",
                                  $media_type, $internal_styles[$media_type]);
@@ -228,23 +243,23 @@ function nginx_aggregation_concat_css_files($css_files) {
     } // else
   } // outer foreach ($css_files)
 
-  // Log to watchdog the number of concatenated files.
+    // Log to watchdog the number of concatenated files.
   watchdog('nginx_agg', 'Concatenated %number CSS files.',
            array('%number' => $nbr_concatenated_css));
   // Return the result.
   return $internal_css . $nginx_aggregation_styles;
 } // nginx_aggregation_concat_css_files
 
-/**
- * Concatenate all JS files and create the string with all that is to be
- * inline.
- *
- * @param array $javascript
- *   All the JS to be processed in the current scope.
- *
- * @return string
- *   The JS related elements to be inserted in the current page.
- */
+  /**
+   * Concatenate all JS files and create the string with all that is to be
+   * inline.
+   *
+   * @param array $javascript
+   *   All the JS to be processed in the current scope.
+   *
+   * @return string
+   *   The JS related elements to be inserted in the current page.
+   */
 function nginx_aggregation_concat_js_files($javascript) {
 
   if (empty($javascript)) {
@@ -312,7 +327,7 @@ function nginx_aggregation_concat_js_files($javascript) {
     } // switch
   } // foreach type (module, theme, inline, setting)
 
-  // Now we build the elements.
+    // Now we build the elements.
   if (!empty($nginx_aggregation_scripts_cache)) {
     $nginx_aggregation_scripts['cache'] =
       variable_get('nginx_aggregation_host', NGINX_AGGREGATION_DEFAULT_HOST) . base_path() .
@@ -365,10 +380,23 @@ function nginx_aggregation_concat_js_files($javascript) {
       } // switch
     } // foreach
   } // else
-  // Log to watchdog the number of concatenated files.
+    // Log to watchdog the number of concatenated files.
   watchdog('nginx_agg', 'Concatenated %number JS files.',
            array('%number' => max($nbr_concatenated_js, $nbr_concatenated_js_defer,
                                   $nbr_concatenated_js_no_cache, $nbr_concatenated_js_no_cache_defer)));
   // Return all the JS.
   return $scripts . $inline_js;
 } // nginx_aggregation_concat_js_files
+
+/**
+ * Computes the new name of images inserted directly on CSS via url().
+ *
+ * @param array $regex_matches
+ *   The array containing the matched regexes.
+ * @return
+ *   The new filename: an absolute URI.
+ */
+function _nginx_aggregation_css_inline_uri($regex_matches) {
+  return variable_get('nginx_aggregation_host', NGINX_AGGREGATION_DEFAULT_HOST) . base_path() .
+    trim(str_replace($_SERVER['DOCUMENT_ROOT'], '', realpath($regex_matches[1])), '/');
+} // _nginx_aggregation_css_inline_uri
