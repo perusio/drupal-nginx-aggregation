@@ -434,7 +434,7 @@ resolve_path:
   $lead = substr($path_components[$n], 0, 1);
   switch ($lead) {
     case DIRECTORY_SEPARATOR:
-      return variable_get('nginx_aggregation_host', 'NGINX_AGGREGATION_DEFAULT_HOST')
+      return variable_get('nginx_aggregation_host', NGINX_AGGREGATION_DEFAULT_HOST)
         . base_path() . $dir . $path_components[$n];
       break;
     case '.':
@@ -442,7 +442,7 @@ resolve_path:
       goto resolve_path; // Must re-process all.
       break;
     default:
-      return variable_get('nginx_aggregation_host', 'NGINX_AGGREGATION_DEFAULT_HOST')
+      return variable_get('nginx_aggregation_host', NGINX_AGGREGATION_DEFAULT_HOST)
         . base_path() . $dir . DIRECTORY_SEPARATOR . $path_components[$n];
   } // switch
 } // nginx_aggregation_get_realpath
