@@ -94,7 +94,7 @@ function nginx_aggregation_preprocess_page(&$vars) {
   if (!empty($vars['styles'])) {
     // If CSS Optimization is enabled bail out right away.
     if (variable_get('preprocess_css', 0)) {
-      break;
+      goto no_css;
     }
     // Otherwise we proceed for aggregation.
     else {
@@ -105,12 +105,13 @@ function nginx_aggregation_preprocess_page(&$vars) {
       }
     }
   } // css done
+no_css:
 
   // Only do this for pages that have JS on them.
   if (!empty($vars['scripts'])) {
     // If JS Optimization is enabled bail out right away.
     if (variable_get('preprocess_js', 0)) {
-      break;
+      goto no_js;
     }
     // Otherwise we proceed for aggregation.
     else { // First we do the header.
@@ -121,6 +122,7 @@ function nginx_aggregation_preprocess_page(&$vars) {
       }
     }
   } // js done
+no_js:
 } // nginx_aggregation_preprocess_page
 
 /**
@@ -247,6 +249,7 @@ function nginx_aggregation_concat_css_files($css_files) {
         $nginx_aggregation_styles .=
           sprintf("<link type=\"text/css\" media=\"%s\" rel=\"stylesheet\" href=\"%s\" />\n",
                   $media_type, $external_styles[$media_type]);
+
       } // else
         // Get the internal CSS to be present on the page.
       if (!empty($internal_styles[$media_type])) {
@@ -260,7 +263,7 @@ function nginx_aggregation_concat_css_files($css_files) {
   watchdog('nginx_agg', 'Concatenated %number CSS files.',
            array('%number' => $nbr_concatenated_css));
   // Return the result.
-  return $internal_css . $nginx_aggregation_styles;
+  return $nginx_aggregation_styles . $internal_css;
 } // nginx_aggregation_concat_css_files
 
   /**
@@ -299,11 +302,12 @@ function nginx_aggregation_concat_js_files($javascript) {
   $nbr_concatenated_js_defer = 0;
   $nbr_concatenated_js_no_cache = 0;
   $nbr_concatenated_js_no_cache_defer = 0;
-  // Loop over all Javascript.
+  /* // Loop over all Javascript. */
   foreach ($javascript as $type => $data) {
     if (!$data) {
       continue;
     }
+    //    if ($type == 'setting' || $type == 'inline') { continue;}
     // Build the inline and settings script tags.
     switch ($type) {
       case 'setting':
@@ -390,8 +394,7 @@ function nginx_aggregation_concat_js_files($javascript) {
                               $file);
           break;
         case 'no_cache_defer':
-          $scripts .= sprintf("<script type=\"text/javascript\" defer=\"defer\" src=\"%s?%s%d\"></script>\n",
-                              $file, NGINX_AGGREGATION_VERSION_PREFIX, $_SERVER['REQUEST_TIME']);
+          $scripts .= sprintf("<script type=\"text/javascript\" defer=\"defer\" src=\"%s?%s%d\"></script>\n", $file, NGINX_AGGREGATION_VERSION_PREFIX, $_SERVER['REQUEST_TIME']);
           break;
         default:
           $scripts .= sprintf("<script type=\"text/javascript\" src=\"%s\"></script>\n", $file);
@@ -403,7 +406,7 @@ function nginx_aggregation_concat_js_files($javascript) {
            array('%number' => max($nbr_concatenated_js, $nbr_concatenated_js_defer,
                                   $nbr_concatenated_js_no_cache, $nbr_concatenated_js_no_cache_defer)));
   // Return all the JS.
-  return $scripts . $inline_js;
+  return  $inline_js . $scripts;
 } // nginx_aggregation_concat_js_files
 
 /**
