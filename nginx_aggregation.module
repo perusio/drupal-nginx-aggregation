@@ -258,24 +258,23 @@ function nginx_aggregation_concat_css_files($css_files) {
       } // if
     } // else
   } // outer foreach ($css_files)
-
-    // Log to watchdog the number of concatenated files.
+  // Log to watchdog the number of concatenated files.
   watchdog('nginx_agg', 'Concatenated %number CSS files.',
            array('%number' => $nbr_concatenated_css));
   // Return the result.
   return $nginx_aggregation_styles . $internal_css;
 } // nginx_aggregation_concat_css_files
 
-  /**
-   * Concatenate all JS files and create the string with all that is to be
-   * inline.
-   *
-   * @param array $javascript
-   *   All the JS to be processed in the current scope.
-   *
-   * @return string
-   *   The JS related elements to be inserted in the current page.
-   */
+/**
+ * Concatenate all JS files and create the string with all that is to be
+ * inline.
+ *
+ * @param array $javascript
+ *   All the JS to be processed in the current scope.
+ *
+ * @return string
+ *   The JS related elements to be inserted in the current page.
+ */
 function nginx_aggregation_concat_js_files($javascript) {
 
   if (empty($javascript)) {
@@ -406,7 +405,7 @@ function nginx_aggregation_concat_js_files($javascript) {
            array('%number' => max($nbr_concatenated_js, $nbr_concatenated_js_defer,
                                   $nbr_concatenated_js_no_cache, $nbr_concatenated_js_no_cache_defer)));
   // Return all the JS.
-  return  $inline_js . $scripts;
+  return $scripts . $inline_js;
 } // nginx_aggregation_concat_js_files
 
 /**
